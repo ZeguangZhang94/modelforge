@@ -1,0 +1,29 @@
+# ---- 产物与大文件（不进仓库，用 Release 分发）----
+dist/
+models_download/
+
+# ---- 测试用的大文件素材 ----
+tests/engine_cache/
+tests/real_model/
+tests/python_embed/
+tests/rocm_engine/
+
+# ---- Python ----
+__pycache__/
+*.pyc
+*.pyo
+
+# ---- 安装/运行残留 ----
+*.part
+*.log
+*.uninstalled.json
+tests/*_install/
+tests/pkg_test*/
+tests/hf_test/
+tests/shard_*/
+tests/full_test/
+tests/console_test/
+tests/mcp_test/
+tests/ent_install/
+tests/upd_*/
+docs/pdf-qa/

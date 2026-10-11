@@ -1,0 +1,1 @@
+ModelForge 是一个模型安装包生成工具，支持 AMD 和 NVIDIA 显卡，自动选择最佳显卡。

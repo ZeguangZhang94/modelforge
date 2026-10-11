@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>本地 AI 控制台</title>
+<style>
+  :root { --bg:#0d1117; --panel:#161b22; --border:#30363d; --fg:#e6edf3;
+          --dim:#8b949e; --accent:#4c9aff; --green:#3fb950; --red:#f85149; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--fg); font:14px/1.6 -apple-system,
+         "Segoe UI", "Microsoft YaHei", sans-serif; height:100vh; display:flex; }
+  /* ---- 左侧栏 ---- */
+  #side { width:280px; background:var(--panel); border-right:1px solid var(--border);
+          padding:16px; display:flex; flex-direction:column; gap:10px; overflow-y:auto; }
+  #side h1 { font-size:17px; margin-bottom:2px; }
+  .stat { background:var(--bg); border:1px solid var(--border); border-radius:8px;
+          padding:10px 12px; }
+  .stat .k { color:var(--dim); font-size:12px; margin-bottom:2px; }
+  .stat .v { font-size:18px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .stat .sub { font-size:12px; color:var(--dim); }
+  #dot { display:inline-block; width:8px; height:8px; border-radius:50%;
+         background:var(--red); margin-right:6px; }
+  #dot.on { background:var(--green); }
+  .kv { font-size:12.5px; color:var(--dim); line-height:1.8; word-break:break-all; }
+  .kv b { color:var(--fg); font-weight:500; }
+  .opsbtn { margin-top:6px; background:#21262d; border:1px solid var(--border);
+      color:var(--fg); border-radius:6px; padding:6px 12px; cursor:pointer;
+      width:100%; font:inherit; font-size:13px; text-align:left; }
+  .opsbtn:hover { border-color:var(--accent); }
+  .opsbtn.danger { color:var(--red); border-color:var(--red); background:#3d2126; }
+  .copyable { cursor:pointer; } .copyable:hover { color:var(--accent); }
+  /* ---- 右侧聊天 ---- */
+  #main { flex:1; display:flex; flex-direction:column; min-width:0; }
+  #chat { flex:1; overflow-y:auto; padding:20px 24px; display:flex;
+          flex-direction:column; gap:14px; }
+  .msg { max-width:78%; padding:10px 14px; border-radius:12px; white-space:pre-wrap;
+         word-break:break-word; }
+  .user { align-self:flex-end; background:var(--accent); color:#fff; }
+  .bot  { align-self:flex-start; background:var(--panel); border:1px solid var(--border); }
+  .meta { align-self:flex-start; font-size:11.5px; color:var(--dim); margin-top:-8px;
+          padding-left:4px; }
+  /* ---- 底部输入区 ---- */
+  #composer { border-top:1px solid var(--border); padding:12px 24px 14px; }
+  #settings { display:flex; gap:14px; align-items:center; flex-wrap:wrap;
+          margin-bottom:10px; font-size:12.5px; color:var(--dim); }
+  #settings input[type=text] { background:var(--bg); border:1px solid var(--border);
+          color:var(--fg); border-radius:6px; padding:4px 8px; font-size:12.5px; }
+  #sysprompt { width:260px; }
+  #maxtok { width:70px; }
+  #temp { width:110px; }
+  #bar { display:flex; gap:8px; }
+  #in { flex:1; background:var(--panel); border:1px solid var(--border); color:var(--fg);
+        border-radius:8px; padding:10px 12px; font:inherit; resize:none; }
+  #send { background:var(--accent); color:#fff; border:0; border-radius:8px;
+          padding:0 22px; font:inherit; cursor:pointer; }
+  #send:disabled { opacity:.4; cursor:default; }
+  .linkbtn { background:none; border:1px solid var(--border); color:var(--dim);
+      border-radius:6px; padding:4px 10px; font-size:12.5px; cursor:pointer; }
+  .linkbtn:hover { color:var(--fg); border-color:var(--accent); }
+</style>
+</head>
+<body>
+<div id="side">
+  <h1 id="title">⚡ 本地 AI</h1>
+  <div class="stat"><span id="dot"></span><span id="eng">引擎检测中…</span>
+    <div class="sub" id="uptime"></div></div>
+
+  <div class="stat"><div class="k">模型信息</div><div class="kv" id="modelinfo">加载中…</div></div>
+
+  <div class="stat"><div class="k">本次会话吞吐</div>
+    <div class="v"><span id="tin">0</span> / <span id="tout">0</span></div>
+    <div class="sub">输入 / 输出 tokens · 请求 <span id="req">0</span> 次</div></div>
+
+  <div class="stat"><div class="k">API 接入（点击复制）</div>
+    <div class="kv">
+      OpenAI：<b class="copyable" id="apiopenai" title="点击复制"></b><br>
+      Anthropic：<b class="copyable" id="apianthropic" title="点击复制"></b><br>
+      <span id="apikey"></span>
+    </div></div>
+
+  <div class="stat"><div class="k">文档问答（RAG）</div>
+    <div class="kv">上传 txt/md/docx 文档，回答时自动参考</div>
+    <input type="file" id="docfile" accept=".txt,.md,.docx" style="font-size:12px;margin-top:6px;width:100%">
+    <div id="doclist" class="kv" style="margin-top:6px"></div>
+    <label style="font-size:12.5px;color:var(--dim);margin-top:6px;display:block">
+      <input type="checkbox" id="rag_on"> 回答时参考已上传文档</label>
+  </div>
+  <div class="stat"><div class="k">局域网分享</div>
+    <div class="kv" id="lanstatus">仅本机访问（127.0.0.1）</div>
+    <button class="opsbtn" onclick="lanShare(true)">📡 开启局域网访问</button>
+    <button class="opsbtn" onclick="lanShare(false)">🔒 关闭（仅本机）</button>
+  </div>
+  <div class="stat"><div class="k">历史对话</div>
+    <div id="history" class="kv"></div>
+  </div>
+  <div class="stat"><div class="k">运维</div>
+    <button class="opsbtn" onclick="restart()">↻ 重启引擎（模型卡住时用）</button>
+    <button class="opsbtn" onclick="updateEngine()">⬆ 更新引擎（模型不动）</button>
+    <button class="opsbtn" onclick="location.href='/admin/diagnose'">⬇ 导出诊断包（反馈问题用）</button>
+    <button class="opsbtn" onclick="manageKeys()">🔑 密钥与用量管理</button>
+    <button class="opsbtn" onclick="viewAudit()">📋 审计日志</button>
+    <button class="opsbtn danger" onclick="uninstall()">🗑 卸载（删除全部文件）</button>
+    <div id="ops" style="font-size:12px;color:var(--dim);margin-top:6px"></div>
+  </div>
+  <div id="panel" style="display:none;position:fixed;inset:8% 15%;background:var(--panel);
+    border:1px solid var(--border);border-radius:10px;padding:18px;z-index:9;overflow:auto">
+    <div style="display:flex;justify-content:space-between">
+      <b id="paneltitle"></b>
+      <button class="linkbtn" onclick="$('panel').style.display='none'">关闭 ✕</button>
+    </div>
+    <div id="panelbody" style="margin-top:10px;font-size:13px"></div>
+  </div>
+  <div class="stat"><div class="k">关于</div><div class="kv" id="about"></div></div>
+</div>
+
+<div id="main">
+  <div id="chat"><div class="msg bot" id="welcome">你好，我是本地 AI 助手。</div></div>
+  <div id="composer">
+    <div id="settings">
+      <span>系统提示词 <input type="text" id="sysprompt" placeholder="可选，如：你是代码助手"></span>
+      <span>温度 <input type="range" id="temp" min="0" max="15" value="7"><b id="tempv">0.7</b></span>
+      <span>最大输出 <input type="text" id="maxtok" value="512"> tokens</span>
+      <button class="linkbtn" onclick="newChat()">✚ 新对话</button>
+      <button class="linkbtn" onclick="exportChat()">⬇ 导出对话</button>
+    </div>
+    <div id="bar">
+      <textarea id="in" rows="2" placeholder="输入消息，Enter 发送，Shift+Enter 换行"></textarea>
+      <button id="send">发送</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let history = [];
+const t0 = Date.now();
+
+/* ---------- 品牌与模型信息 ---------- */
+fetch('/branding.json').then(r => r.json()).then(b => {
+  if (b.theme_color) document.documentElement.style.setProperty('--accent', b.theme_color);
+  const name = b.display_name || b.name || '本地 AI';
+  document.title = name;
+  $('title').innerHTML = (b.logo_text || '⚡') + ' ' + name;
+  if (b.welcome_message) $('welcome').textContent = b.welcome_message;
+  $('modelinfo').innerHTML = [
+    ['模型', name], ['量化档位', b.variant], ['显卡', b.gpu],
+    ['模型大小', b.model_size_gb ? b.model_size_gb + ' GB' : ''],
+    ['上下文', b.context ? (b.context/1024).toFixed(0) + 'K tokens' : ''],
+    ['引擎', b.engine_backend],
+  ].filter(x => x[1]).map(x => x[0] + '：<b>' + x[1] + '</b>').join('<br>');
+  $('about').textContent = b.about || '';
+  const base = location.origin;
+  $('apiopenai').textContent = base + '/v1';
+  $('apianthropic').textContent = base + '/v1/messages';
+  $('apikey').textContent = '本机访问无需 API Key';
+}).catch(() => {});
+
+document.querySelectorAll('.copyable').forEach(() => {});
+document.addEventListener('click', e => {
+  if (e.target.classList.contains('copyable')) {
+    navigator.clipboard.writeText(e.target.textContent).then(() => {
+      const t = e.target.textContent; e.target.textContent = '✔ 已复制';
+      setTimeout(() => e.target.textContent = t, 1200);
+    });
+  }
+});
+
+/* ---------- 状态轮询 ---------- */
+async function poll() {
+  try {
+    const m = await (await fetch('/metrics')).json();
+    $('req').textContent = m.requests_total;
+    $('tin').textContent = m.prompt_tokens;
+    $('tout').textContent = m.completion_tokens;
+    $('uptime').textContent = '已运行 ' + Math.round(m.uptime_s) + ' 秒';
+    const on = m.engine === 'online';
+    $('dot').className = on ? 'on' : '';
+    $('eng').textContent = on ? '引擎运行中' : '引擎离线（点左侧重启）';
+  } catch (e) { $('eng').textContent = '网关未连接'; }
+}
+poll(); setInterval(poll, 2000);
+
+/* ---------- 聊天 ---------- */
+function add(role, text) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  div.textContent = text;
+  $('chat').appendChild(div);
+  $('chat').scrollTop = $('chat').scrollHeight;
+  return div;
+}
+function addMeta(text) {
+  const div = document.createElement('div');
+  div.className = 'meta';
+  div.textContent = text;
+  $('chat').appendChild(div);
+}
+
+$('temp').oninput = () => $('tempv').textContent = ($('temp').value / 10).toFixed(1);
+
+async function send() {
+  const text = $('in').value.trim();
+  if (!text) return;
+  $('in').value = ''; $('send').disabled = true;
+  add('user', text);
+
+  const sys = $('sysprompt').value.trim();
+  const msgs = [];
+  if (sys) msgs.push({role: 'system', content: sys});
+  let finalText = text;
+  // RAG：勾选后先检索文档，把命中的片段附在问题前
+  if ($('rag_on').checked) {
+    try {
+      const r = await (await fetch('/api/rag_search', {method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({query: text, k: 4})})).json();
+      if (r.hits && r.hits.length) {
+        const ctx = r.hits.map((h, i) => `[资料${i + 1}·${h.doc}]\n${h.text}`).join('\n\n');
+        finalText = `请参考以下资料回答（资料不足就直接说不知道）：\n\n${ctx}\n\n我的问题：${text}`;
+      }
+    } catch (e) {}
+  }
+  msgs.push(...history, {role: 'user', content: finalText});
+
+  const bubble = add('bot', '…');
+  const started = Date.now();
+  let usage = null;
+  try {
+    const resp = await fetch('/v1/chat/completions', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        model: 'local', messages: msgs, stream: true,
+        temperature: parseFloat($('tempv').textContent),
+        max_tokens: parseInt($('maxtok').value) || 512,
+        stream_options: {include_usage: true},
+      })
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      bubble.textContent = '[错误] ' + (err.error ? err.error.message : resp.status);
+      return;
+    }
+    bubble.textContent = '';
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream: true});
+      const lines = buf.split('\n'); buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data:')) continue;
+        const data = line.slice(5).trim();
+        if (data === '[DONE]') break;
+        try {
+          const j = JSON.parse(data);
+          if (j.usage) usage = j.usage;
+          const delta = j.choices && j.choices[0] && j.choices[0].delta;
+          if (delta && delta.content) bubble.textContent += delta.content;
+          $('chat').scrollTop = $('chat').scrollHeight;
+        } catch (e) {}
+      }
+    }
+    history.push({role: 'user', content: text},
+                 {role: 'assistant', content: bubble.textContent});
+    persistChat();
+    // 实测速度显示
+    const secs = (Date.now() - started) / 1000;
+    const out_tok = usage ? usage.completion_tokens : 0;
+    const tps = out_tok && secs > 0 ? (out_tok / secs).toFixed(1) : null;
+    addMeta(tps ? `⚡ ${tps} tok/s · 输出 ${out_tok} tokens · ${secs.toFixed(1)} 秒`
+                : `耗时 ${secs.toFixed(1)} 秒`);
+  } catch (e) {
+    bubble.textContent = '[网络错误] ' + e + '（可尝试左侧「重启引擎」）';
+  } finally {
+    $('send').disabled = false; $('in').focus();
+  }
+}
+/* ---------- 密钥管理 / 审计日志 ---------- */
+async function manageKeys() {
+  const d = await (await fetch('/api/keys')).json();
+  const usage = d.usage_by_key || {};
+  $('paneltitle').textContent = '密钥与用量';
+  $('panelbody').innerHTML =
+    (d.keys.length ? d.keys.map(k =>
+      `<div style="padding:6px 0;border-bottom:1px solid var(--border)">
+        🔑 <b>${k.name || '(未命名)'}</b>　角色：${k.role}　密钥：${k.key_preview}
+        　用量：${(usage[k.name] || {}).requests || 0} 次 / ${(usage[k.name] || {}).tokens || 0} tokens
+        <a href="javascript:void(0)" style="color:var(--red)"
+           onclick="delKey('${k.key_preview}')">删除</a></div>`).join('')
+     : '<span style="color:var(--dim)">暂无虚拟密钥（本机默认全权）。</span>') +
+    '<div style="margin-top:12px;color:var(--dim)">说明：本机回环访问不需要密钥；密钥用于局域网/团队访问控制。角色：consumer 只能对话，operator 可加运维，auditor 只读审计，admin 全权。</div>' +
+    '<button class="linkbtn" style="margin-top:10px" onclick="addKey()">＋ 新建密钥</button>';
+  $('panel').style.display = 'block';
+}
+async function addKey() {
+  const name = prompt('密钥名称（如：张三/市场部）：');
+  if (!name) return;
+  const role = prompt('角色（consumer / operator / auditor / admin）：', 'consumer');
+  if (!role) return;
+  const key = 'mf-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  const r = await fetch('/admin/keys', {method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({action: 'add', key, name, role})});
+  const d = await r.json();
+  if (d.ok) alert('已创建密钥：\n' + key + '\n\n请复制给对方（只显示这一次完整密钥）');
+  else alert(d.error || '创建失败');
+  manageKeys();
+}
+async function delKey(preview) {
+  const d = await (await fetch('/api/keys')).json();
+  alert('请到配置文件删除完整密钥（预览 ' + preview + '），或在下一版本支持页面删除。');
+}
+async function viewAudit() {
+  const d = await (await fetch('/api/audit?n=50')).json();
+  $('paneltitle').textContent = `审计日志（共 ${d.total} 条，显示最近 50 条）`;
+  $('panelbody').innerHTML = d.entries.length ?
+    '<table style="width:100%;font-size:12px;border-collapse:collapse">' +
+    '<tr style="color:var(--dim)"><td>时间</td><td>密钥</td><td>接口</td><td>输入/输出tok</td><td>耗时ms</td><td>状态</td></tr>' +
+    d.entries.reverse().map(e =>
+      `<tr style="border-top:1px solid var(--border)"><td>${e.ts.slice(5, 19)}</td><td>${e.key}</td>` +
+      `<td>${e.endpoint}</td><td>${e.prompt_tokens}/${e.completion_tokens}</td>` +
+      `<td>${e.latency_ms}</td><td>${e.status}</td></tr>`).join('') + '</table>'
+    : '<span style="color:var(--dim)">暂无审计记录（产生推理后自动记录）。</span>';
+  $('panel').style.display = 'block';
+}
+$('send').onclick = send;
+$('in').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+
+/* ---------- 对话管理 ---------- */
+function newChat() {
+  history = [];
+  sessionId = Date.now().toString(36);
+  $('chat').innerHTML = '';
+  const w = document.createElement('div');
+  w.className = 'msg bot'; w.id = 'welcome';
+  w.textContent = '新对话已开始。';
+  $('chat').appendChild(w);
+}
+function exportChat() {
+  if (!history.length) { alert('还没有对话内容'); return; }
+  const md = ['# 本地 AI 对话记录', '',
+    '导出时间：' + new Date().toLocaleString(), ''].concat(
+    history.map(m => (m.role === 'user' ? '## 🧑 用户\n' : '## 🤖 AI\n') + m.content)
+  ).join('\n\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([md], {type: 'text/markdown;charset=utf-8'}));
+  a.download = 'chat-' + new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-') + '.md';
+  a.click();
+}
+
+/* ---------- 文档问答（RAG） ---------- */
+async function loadDocs() {
+  const d = await (await fetch('/api/docs')).json();
+  $('doclist').innerHTML = d.docs.length
+    ? d.docs.map(x => `<div>📄 ${x.name}（${x.size_kb}KB）
+        <a href="javascript:void(0)" onclick="delDoc('${x.name}')" style="color:var(--red)">删</a></div>`).join('')
+    : '<span style="color:var(--dim)">暂无文档</span>';
+}
+$('docfile').addEventListener('change', async e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const buf = await f.arrayBuffer();
+  const r = await fetch('/api/docs/upload?name=' + encodeURIComponent(f.name),
+    {method: 'POST', body: buf});
+  const d = await r.json();
+  if (!d.ok) alert(d.error || '上传失败');
+  $('docfile').value = '';
+  loadDocs();
+});
+async function delDoc(name) {
+  await fetch('/api/docs/delete', {method: 'POST',
+    headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name})});
+  loadDocs();
+}
+loadDocs();
+
+/* ---------- 局域网分享 ---------- */
+async function lanShare(on) {
+  let key = '';
+  if (on) {
+    key = prompt('设置访问密钥（其他设备凭此 key 访问）：');
+    if (!key) return;
+  }
+  const d = await (await fetch('/admin/lan', {method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({enable: on, api_key: key})})).json();
+  if (!d.ok) { alert(d.error); return; }
+  $('lanstatus').textContent = on
+    ? `已开启：局域网设备访问 http://<本机IP>:${location.port}/  （API Key: ${key}）`
+    : '仅本机访问（127.0.0.1）';
+  $('ops').textContent = '服务正以新网络模式重启，几秒后自动恢复…';
+}
+
+/* ---------- 引擎更新 ---------- */
+async function updateEngine() {
+  $('ops').textContent = '引擎更新中…';
+  const d = await (await fetch('/admin/update_engine', {method: 'POST'})).json();
+  $('ops').textContent = d.message || d.error || '';
+}
+
+/* ---------- 历史对话持久化（localStorage） ---------- */
+const HKEY = 'modelforge_sessions';
+function loadSessions() { try { return JSON.parse(localStorage.getItem(HKEY) || '[]'); } catch (e) { return []; } }
+function saveSessions(s) { localStorage.setItem(HKEY, JSON.stringify(s.slice(0, 30))); }
+let sessionId = Date.now().toString(36);
+
+function persistChat() {
+  if (!history.length) return;
+  const sessions = loadSessions();
+  const title = (history[0] && history[0].content || '对话').slice(0, 18);
+  const i = sessions.findIndex(s => s.id === sessionId);
+  const rec = {id: sessionId, title, time: new Date().toLocaleString(), messages: history};
+  if (i >= 0) sessions[i] = rec; else sessions.unshift(rec);
+  saveSessions(sessions);
+  renderHistory();
+}
+function renderHistory() {
+  const sessions = loadSessions();
+  $('history').innerHTML = sessions.length ? sessions.map(s =>
+    `<div><a href="javascript:void(0)" onclick="loadSession('${s.id}')">💬 ${s.title}</a>
+     <span style="color:var(--dim)"> ${s.time.slice(5, 16)}</span>
+     <a href="javascript:void(0)" onclick="delSession('${s.id}')" style="color:var(--red)">删</a></div>`
+  ).join('') : '<span style="color:var(--dim)">暂无历史</span>';
+}
+function loadSession(id) {
+  const s = loadSessions().find(x => x.id === id);
+  if (!s) return;
+  sessionId = s.id; history = s.messages;
+  $('chat').innerHTML = '';
+  history.forEach(m => add(m.role === 'user' ? 'user' : 'bot', m.content));
+}
+function delSession(id) {
+  saveSessions(loadSessions().filter(x => x.id !== id));
+  renderHistory();
+}
+renderHistory();
+
+/* ---------- 运维 ---------- */
+async function restart() {
+  $('ops').textContent = '重启中…';
+  const d = await (await fetch('/admin/restart', {method: 'POST'})).json();
+  $('ops').textContent = d.message || d.error || '';
+  if (d.ok) setTimeout(() => $('ops').textContent = '', 8000);
+}
+async function uninstall() {
+  if (!confirm('确认卸载？将删除安装目录内全部文件（模型、配置、记录），并清除开机自启项。')) return;
+  if (!confirm('再次确认：此操作不可恢复，确定继续？')) return;
+  try {
+    const d = await (await fetch('/admin/uninstall', {method: 'POST'})).json();
+    $('ops').textContent = d.message || '';
+    setTimeout(() => {
+      document.body.innerHTML = '<div style="max-width:480px;margin:120px auto;text-align:center">'
+        + '<h1>✔ 已卸载</h1><p style="color:#8b949e">服务已停止，安装目录与自启项已清除。本页面可以关闭了。</p></div>';
+    }, 3000);
+  } catch (e) { $('ops').textContent = '卸载请求失败: ' + e; }
+}
+</script>
+</body>
+</html>

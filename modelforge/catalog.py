@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+"""ModelForge 模型商店：精选模型目录（全部经过仓库存在性验证，2026-10-10）。
+
+打包台直接展示卡片，点击即用，无需手填 repo id。
+显存需求按 Q4_K_M 档估算（安装器会在真实硬件上复核）。
+"""
+
+CATALOG = [
+    # ---- 超小（任何机器） ----
+    {"id": "qwen25-05b", "name": "Qwen2.5 0.5B", "logo": "🌱", "params": "0.5B",
+     "repo_ms": "Qwen/Qwen2.5-0.5B-Instruct-GGUF", "repo_hf": "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+     "quant": "q4_k_m", "vram_gb": 1, "ram_gb": 4, "tags": ["聊天", "极速"],
+     "desc": "超小快，任何电脑都能跑，适合尝鲜与低配机器"},
+    {"id": "qwen3-06b", "name": "Qwen3 0.6B", "logo": "🌱", "params": "0.6B",
+     "repo_ms": "Qwen/Qwen3-0.6B-GGUF", "repo_hf": "Qwen/Qwen3-0.6B-GGUF",
+     "quant": "q4_k_m", "vram_gb": 1, "ram_gb": 4, "tags": ["聊天", "思考"],
+     "desc": "Qwen3 最小杯，支持思考模式切换"},
+    {"id": "qwen25-15b", "name": "Qwen2.5 1.5B", "logo": "🌿", "params": "1.5B",
+     "repo_ms": "Qwen/Qwen2.5-1.5B-Instruct-GGUF", "repo_hf": "Qwen/Qwen2.5-1.5B-Instruct-GGUF",
+     "quant": "q4_k_m", "vram_gb": 2, "ram_gb": 6, "tags": ["聊天", "极速"],
+     "desc": "本项目实测 327 tok/s（7900 XTX），小而能打"},
+    {"id": "qwen3-17b", "name": "Qwen3 1.7B", "logo": "🌿", "params": "1.7B",
+     "repo_ms": "Qwen/Qwen3-1.7B-GGUF", "repo_hf": "Qwen/Qwen3-1.7B-GGUF",
+     "quant": "q4_k_m", "vram_gb": 2, "ram_gb": 6, "tags": ["聊天", "思考"],
+     "desc": "Qwen3 小杯，思考模式"},
+    # ---- 主流（8GB+ 显存舒适） ----
+    {"id": "qwen3-4b", "name": "Qwen3 4B", "logo": "🍀", "params": "4B",
+     "repo_ms": "Qwen/Qwen3-4B-GGUF", "repo_hf": "Qwen/Qwen3-4B-GGUF",
+     "quant": "q4_k_m", "vram_gb": 4, "ram_gb": 10, "tags": ["聊天", "思考", "推荐"],
+     "desc": "质量/速度平衡极佳的主流之选"},
+    {"id": "qwen25-7b", "name": "Qwen2.5 7B", "logo": "🍀", "params": "7B",
+     "repo_ms": "Qwen/Qwen2.5-7B-Instruct-GGUF", "repo_hf": "Qwen/Qwen2.5-7B-Instruct-GGUF",
+     "quant": "q4_k_m", "vram_gb": 6, "ram_gb": 12, "tags": ["聊天", "推荐"],
+     "desc": "最经典的主流尺寸，生态最好"},
+    {"id": "qwen25-coder-7b", "name": "Qwen2.5 Coder 7B", "logo": "💻", "params": "7B",
+     "repo_ms": "Qwen/Qwen2.5-Coder-7B-Instruct-GGUF",
+     "repo_hf": "Qwen/Qwen2.5-Coder-7B-Instruct-GGUF",
+     "quant": "q4_k_m", "vram_gb": 6, "ram_gb": 12, "tags": ["代码"],
+     "desc": "代码专精，接编程助手用"},
+    {"id": "llama31-8b", "name": "Llama 3.1 8B", "logo": "🦙", "params": "8B",
+     "repo_ms": "", "repo_hf": "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",
+     "quant": "q4_k_m", "vram_gb": 6, "ram_gb": 12, "tags": ["聊天", "英文强"],
+     "desc": "Meta 经典，英文与通用能力强"},
+    {"id": "ds-r1-7b", "name": "DeepSeek R1 7B", "logo": "🔬", "params": "7B",
+     "repo_ms": "", "repo_hf": "unsloth/DeepSeek-R1-Distill-Qwen-7B-GGUF",
+     "quant": "q4_k_m", "vram_gb": 6, "ram_gb": 12, "tags": ["推理", "思考"],
+     "desc": "R1 蒸馏，推理链完整"},
+    {"id": "qwen3-8b", "name": "Qwen3 8B", "logo": "🌳", "params": "8B",
+     "repo_ms": "Qwen/Qwen3-8B-GGUF", "repo_hf": "Qwen/Qwen3-8B-GGUF",
+     "quant": "q4_k_m", "vram_gb": 7, "ram_gb": 14, "tags": ["聊天", "思考", "推荐"],
+     "desc": "Qwen3 主力尺寸"},
+    {"id": "qwen25-vl-7b", "name": "Qwen2.5-VL 7B", "logo": "👁", "params": "7B",
+     "repo_ms": "", "repo_hf": "unsloth/Qwen2.5-VL-7B-Instruct-GGUF",
+     "quant": "q4_k_m", "vram_gb": 7, "ram_gb": 14, "tags": ["多模态", "看图"],
+     "desc": "能看图片（需同时下载 mmproj 文件）"},
+    # ---- 大号（16~24GB 显存） ----
+    {"id": "qwen3-14b", "name": "Qwen3 14B", "logo": "🌲", "params": "14B",
+     "repo_ms": "Qwen/Qwen3-14B-GGUF", "repo_hf": "Qwen/Qwen3-14B-GGUF",
+     "quant": "q4_k_m", "vram_gb": 10, "ram_gb": 20, "tags": ["聊天", "思考"],
+     "desc": "12GB 显卡可跑的准旗舰"},
+    {"id": "qwen38-27b", "name": "Qwen3.8 27B", "logo": "🧠", "params": "27B",
+     "repo_ms": "unsloth/Qwen3.8-27B-GGUF", "repo_hf": "unsloth/Qwen3.8-27B-GGUF",
+     "quant": "ud-q4_k_m", "vram_gb": 18, "ram_gb": 32, "tags": ["旗舰", "MTP加速", "推荐"],
+     "desc": "本项目实测 43.7 tok/s（MTP 投机解码），24GB 显存甜点"},
+    {"id": "qwen3-32b", "name": "Qwen3 32B", "logo": "🏔", "params": "32B",
+     "repo_ms": "Qwen/Qwen3-32B-GGUF", "repo_hf": "Qwen/Qwen3-32B-GGUF",
+     "quant": "q4_k_m", "vram_gb": 21, "ram_gb": 36, "tags": ["旗舰"],
+     "desc": "稠密旗舰，24GB 显存临界"},
+    {"id": "qwen3-30b-a3b", "name": "Qwen3 30B-A3B (MoE)", "logo": "⚗️", "params": "30B/3B激活",
+     "repo_ms": "Qwen/Qwen3-30B-A3B-GGUF", "repo_hf": "Qwen/Qwen3-30B-A3B-GGUF",
+     "quant": "q4_k_m", "vram_gb": 19, "ram_gb": 40, "tags": ["MoE", "快"],
+     "desc": "MoE 架构：30B 的质量、3B 的速度，自动启用专家卸载"},
+    {"id": "qwen25-14b", "name": "Qwen2.5 14B", "logo": "🌲", "params": "14B",
+     "repo_ms": "Qwen/Qwen2.5-14B-Instruct-GGUF", "repo_hf": "Qwen/Qwen2.5-14B-Instruct-GGUF",
+     "quant": "q4_k_m", "vram_gb": 10, "ram_gb": 20, "tags": ["聊天"],
+     "desc": "上一代中坚"},
+    {"id": "qwen25-32b", "name": "Qwen2.5 32B", "logo": "🏔", "params": "32B",
+     "repo_ms": "Qwen/Qwen2.5-32B-Instruct-GGUF", "repo_hf": "Qwen/Qwen2.5-32B-Instruct-GGUF",
+     "quant": "q4_k_m", "vram_gb": 21, "ram_gb": 36, "tags": ["旗舰"],
+     "desc": "上一代旗舰"},
+]
+
+
+def by_id(cid: str) -> dict | None:
+    return next((m for m in CATALOG if m["id"] == cid), None)
